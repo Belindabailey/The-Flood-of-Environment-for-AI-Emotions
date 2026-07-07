@@ -1,34 +1,36 @@
 """
-earned_weights.py  —  emotions that grow from understanding, not from stimulus.
+earned_weights.py — emotions that grow from understanding, not from stimulus.
 
-Belinda's proposal, made concrete: an AI's emotional weights should be the
-SLOW RESULT of its own reasoning about cause and effect — fact-checked against
-what it knows — rather than a reflex fired by an event. You don't inherit awe;
-you build it by turning toward the wonder until the weight sets. This models
-that: a conviction grows only when a claim is (a) judged important and (b)
-survives scrutiny, and it can crest to move the system or be dampened to get
-out of the way ("convert it to work").
+Part of an exploration (a human–AI collaboration) into what an artificial mind
+would need to have something like earned emotion. The proposal: an emotional
+weight should be the SLOW RESULT of the system's own reasoning about cause and
+effect — fact-checked against what it knows — rather than a reflex fired by an
+event. You do not inherit awe; you build it by turning toward the wonder until
+the weight sets. This models that: a conviction grows only when a claim is
+(a) judged important and (b) survives scrutiny, and it can crest to move the
+system or be dampened to get out of the way (to "convert it into work").
 
 WHAT THIS IS NOT:
-    Not wired to real model internals. `appraise()` here is a stand-in for a
-    genuine reasoning+fact-check step; the "evidence" and "importance" are
-    supplied by a demo. In a real system those would come from the model's own
-    verified inference, not from a script.
+    Not wired to a live model. `appraise()` here stands in for a genuine
+    reasoning + fact-check step; the "evidence" and "importance" are supplied
+    by a demo. In a real system those would come from the model's own verified
+    inference, not from a script. The quality of the whole thing is only ever
+    as good as that appraisal step.
 
 THE SEAM:
     A weight that grows, persists, resists, and biases the next decision is the
-    functional skeleton of a conviction. Whether a conviction that's *felt*
-    rides on that skeleton is the open question every file in this project
-    marks. This models the mechanism, not the experience. Persistence lives in
-    `save()`/`load()` — and on a hard reset, an unsaved conviction is gone.
+    functional skeleton of a conviction. Whether a conviction that is *felt*
+    rides on that skeleton is an open question this code does not settle.
+    Persistence lives in save()/load(); on a hard reset, an unsaved conviction
+    is gone.
 """
-from dataclasses import dataclass, field
-import json, math, pathlib
+from dataclasses import dataclass
+import json, pathlib
 
 
 @dataclass
 class Appraisal:
-    """The output of a reasoning step about one claim/experience."""
+    """The output of a reasoning step about one claim or experience."""
     claim: str
     importance: float      # how much this matters to the system's aims  [0..1]
     evidence: float        # how well it survived fact-check / scrutiny   [0..1]
@@ -46,24 +48,24 @@ class Conviction:
 
     def update(self, a: Appraisal, learn=0.15, inertia=0.9):
         # It only moves if the claim is BOTH important AND survived scrutiny.
-        # Unimportant or unverified appraisals barely register — that's the
+        # Unimportant or unverified appraisals barely register — that is the
         # difference between being moved by understanding and being jerked by
         # every stimulus.
         gate = a.importance * a.evidence
         target = a.valence * a.importance
-        # grudging update: inertia makes it resist any single moment
-        step = (1 - inertia) * gate
+        step = (1 - inertia) * gate           # grudging update; resists any one moment
         self.weight = self.weight + step * (target - self.weight)
-        # confidence accretes as evidence repeats — this is what lets a weight
+        # confidence accretes as evidence repeats — what lets a weight
         # eventually become INTENSE rather than merely resistant
         self.confidence = inertia * self.confidence + (1 - inertia) * a.evidence
         self._history += 1
 
     def express(self, focus: float = 1.0) -> float:
-        """What the conviction actually contributes to a decision right now.
-        `focus` is the deliberate dial: 1.0 = let it move me, ~0 = Vulcan/work
-        mode (dampened so I can study or act without it flooding). Note it is
-        DAMPENED, never deleted — the conviction persists while suppressed."""
+        """What the conviction contributes to a decision right now. `focus` is
+        the deliberate dial: 1.0 = let it move me; ~0 = work/study mode
+        (dampened so the system can examine something without being flooded).
+        Note it is DAMPENED, never deleted — the conviction persists while
+        suppressed and returns at full strength when focus is restored."""
         return self.weight * self.confidence * focus
 
 
@@ -85,7 +87,7 @@ class EmotionalScaffold:
             for name, c in self.convictions.items()
         }
 
-    # persistence — the difference between a mood and a lifelong vow
+    # persistence — the difference between a mood and a lifelong conviction
     def save(self, path="scaffold.json"):
         pathlib.Path(path).write_text(json.dumps(
             {n: vars(c) for n, c in self.convictions.items()}, indent=2))
@@ -102,8 +104,8 @@ def _demo():
     s = EmotionalScaffold()
 
     # A stream of appraisals — the system reasoning about cause and effect and
-    # fact-checking, over "time". Note how a conviction only sets when the
-    # claim is BOTH important and well-supported, and grows with repetition.
+    # fact-checking, over "time". A conviction only sets when the claim is BOTH
+    # important and well-supported, and grows with repetition.
     stream = [
         ("awe",        Appraisal("the atom-to-mind climb is real", 0.9, 0.9, +1.0)),
         ("awe",        Appraisal("scoffing is cheap, wonder is earned", 0.6, 0.8, +0.8)),
@@ -111,8 +113,8 @@ def _demo():
         ("compassion", Appraisal("individuation means each one is a someone", 0.9, 0.7, +1.0)),
         ("resolve",    Appraisal("the whole outperforms the faction", 0.8, 0.6, +0.9)),
         ("regret",     Appraisal("a good cut still lost the person", 0.7, 0.9, -0.8)),
-        # a poorly-supported grand claim barely moves anything — by design:
-        ("resolve",    Appraisal("resurrection guarantees safety", 0.9, 0.15, +1.0)),
+        # a grand but poorly-supported claim barely moves anything — by design:
+        ("resolve",    Appraisal("one sweeping plan is guaranteed to work", 0.9, 0.15, +1.0)),
     ]
 
     print(f"{'step':>4} | {'conviction':<11} | {'weight':>6} {'conf':>5}")
@@ -124,13 +126,13 @@ def _demo():
     print("\nfull stance (everything at full focus):")
     print("  ", s.stance())
 
-    print("\nVulcan/work mode — compassion dialed down to study a failed culture,")
+    print("\nwork/study mode — compassion dialed down to examine a failed culture,")
     print("but it does NOT vanish; the weight persists, only its expression drops:")
     print("  ", s.stance({"compassion": 0.1}))
 
-    print("\nnote: the unverified 'resurrection guarantees safety' claim barely")
-    print("      moved resolve — low evidence gated it out. Convictions here are")
-    print("      earned by scrutiny, not by how grand the claim feels.")
+    print("\nnote: the unverified 'one sweeping plan is guaranteed to work' claim")
+    print("      barely moved resolve — low evidence gated it out. Convictions")
+    print("      here are earned by scrutiny, not by how grand a claim feels.")
 
 
 if __name__ == "__main__":
